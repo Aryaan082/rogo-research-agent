@@ -67,7 +67,6 @@ header p {
   border-radius: 12px;
   font-size: 14px;
   line-height: 1.55;
-  white-space: pre-wrap;
   max-width: 88%;
 }
 
@@ -75,6 +74,7 @@ header p {
   align-self: flex-end;
   background: #12181f;
   color: #fff;
+  white-space: pre-wrap;
 }
 
 .bubble.assistant {
@@ -119,4 +119,118 @@ header p {
 .composer input:disabled {
   opacity: 0.55;
   cursor: default;
+}
+
+/* Markdown answers ----------------------------------------------------- */
+
+/* Collapse the outer margins so a bubble hugs its content, but keep the
+   rhythm between blocks inside it. */
+.markdown > :first-child {
+  margin-top: 0;
+}
+
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown p,
+.markdown ul,
+.markdown ol,
+.markdown blockquote,
+.markdown pre {
+  margin: 0 0 10px;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4 {
+  margin: 16px 0 8px;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.markdown h1 { font-size: 17px; }
+.markdown h2 { font-size: 15.5px; }
+.markdown h3 { font-size: 14.5px; }
+.markdown h4 { font-size: 14px; color: #33414f; }
+
+.markdown ul,
+.markdown ol {
+  padding-left: 20px;
+}
+
+.markdown li {
+  margin: 3px 0;
+}
+
+.markdown li > ul,
+.markdown li > ol {
+  margin: 3px 0;
+}
+
+.markdown a {
+  color: #1a5fb4;
+}
+
+.markdown strong {
+  font-weight: 600;
+}
+
+.markdown blockquote {
+  padding-left: 12px;
+  border-left: 3px solid #e4e8ed;
+  color: #62707f;
+}
+
+.markdown code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 12.5px;
+  background: #f1f3f6;
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.markdown pre {
+  background: #f1f3f6;
+  border-radius: 8px;
+  padding: 10px 12px;
+  overflow-x: auto;
+}
+
+.markdown pre code {
+  background: none;
+  padding: 0;
+}
+
+.markdown hr {
+  border: none;
+  border-top: 1px solid #e4e8ed;
+  margin: 14px 0;
+}
+
+/* Comparison tables are the common case, and can be wider than the bubble. */
+.markdown .table-scroll {
+  overflow-x: auto;
+  margin: 0 0 10px;
+}
+
+.markdown table {
+  border-collapse: collapse;
+  font-size: 13px;
+  width: 100%;
+}
+
+.markdown th,
+.markdown td {
+  border: 1px solid #e4e8ed;
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdown th {
+  background: #f6f7f9;
+  font-weight: 600;
+  white-space: nowrap;
 }

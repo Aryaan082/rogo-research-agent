@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Markdown } from "./Markdown.tsx";
 
 interface Message {
   role: "user" | "assistant";
@@ -65,7 +66,11 @@ export function App() {
 
         {messages.map((message, i) => (
           <div key={i} className={`bubble ${message.role}`}>
-            {message.text}
+            {message.role === "assistant" ? (
+              <Markdown>{message.text}</Markdown>
+            ) : (
+              message.text
+            )}
           </div>
         ))}
 
