@@ -1,0 +1,5 @@
+- Rendered the assistant output as markdown
+- Added tool usage status descriptions
+- Updated the API to an SSE connection to stream tokens and progress events on tool calls
+- Added a per question tool call cache that coalesces duplicate lookups whether they arrive in the same iteration or a later one
+- Add parallelization to the tool calls
