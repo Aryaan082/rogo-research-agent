@@ -36,7 +36,7 @@ function logEvent(event: AgentEvent) {
 }
 
 app.post("/api/chat", async (req, res) => {
-  const message = String(req.body.message ?? "").trim();
+  const message = String(req.body.message ?? "");
   console.log(`\n[chat] ${message}`);
 
   if (!message) {
@@ -56,45 +56,25 @@ app.post("/api/chat", async (req, res) => {
 
   const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
 
-  const controller = new AbortController();
-  // `req`'s 'close' event fires as soon as Express finishes reading the
-  // request body — effectively immediately, unrelated to the client going
-  // away. `res`'s 'close' tracks the response instead, but it also fires
-  // after we call res.end() ourselves, so only treat it as a disconnect if
-  // we haven't finished writing the response yet.
-  res.on("close", () => {
-    if (!res.writableEnded) controller.abort();
-  });
-
   try {
-    const result = await runAgent(
-      message,
-      (event) => {
-        logEvent(event);
-        send(event);
-      },
-      controller.signal,
-    );
+    const result = await runAgent(message, (event) => {
+      logEvent(event);
+      send(event);
+    });
 
     send({ type: "done", answer: result.answer, iterations: result.iterations });
   } catch (err) {
-    if (!controller.signal.aborted) {
-      console.error(err);
-      send({
-        type: "error",
-        message: "The research agent failed to answer. Please try again.",
-      });
-    }
+    console.error(err);
+    send({
+      type: "error",
+      message: "The research agent failed to answer. Please try again.",
+    });
   } finally {
     res.end();
   }
 });
 
-// Deliberately not the generic PORT — vite.config.ts's dev proxy target is
-// hardcoded to localhost:8787, and dev tooling that assigns PORT for "the
-// one port the user opens" (that's Vite's 5173 here) would otherwise steer
-// this internal API server onto the wrong port and silently break the proxy.
-const port = Number(process.env.AGENT_PORT ?? 8787);
+const port = Number(process.env.PORT ?? 8787);
 app.listen(port, () => {
   console.log(`Agent server listening on http://localhost:${port}`);
 });

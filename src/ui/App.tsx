@@ -44,21 +44,9 @@ export function App() {
 
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Deltas arrive far faster than React should re-render for — Markdown
-  // re-parses the whole answer on every render. Batch them and flush at
-  // most once per frame regardless of token rate.
-  const pendingDeltaRef = useRef("");
-  const rafRef = useRef<number | null>(null);
-
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
   });
-
-  useEffect(() => {
-    return () => {
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-    };
-  }, []);
 
   useEffect(() => {
     if (!busy) return;
@@ -74,21 +62,6 @@ export function App() {
       next[next.length - 1] = updater(next[next.length - 1]);
       return next;
     });
-  }
-
-  function flushDelta() {
-    rafRef.current = null;
-    const text = pendingDeltaRef.current;
-    if (!text) return;
-    pendingDeltaRef.current = "";
-    updateLastMessage((message) => ({ ...message, text: message.text + text }));
-  }
-
-  function queueDelta(text: string) {
-    pendingDeltaRef.current += text;
-    if (rafRef.current === null) {
-      rafRef.current = requestAnimationFrame(flushDelta);
-    }
   }
 
   function applyEvent(event: ChatStreamEvent) {
@@ -137,11 +110,10 @@ export function App() {
         break;
 
       case "answer_delta":
-        queueDelta(event.text);
+        updateLastMessage((message) => ({ ...message, text: message.text + event.text }));
         break;
 
       case "done":
-        flushDelta();
         updateLastMessage((message) => ({
           ...message,
           text: event.answer,
@@ -152,7 +124,6 @@ export function App() {
         break;
 
       case "error":
-        flushDelta();
         updateLastMessage((message) => ({
           ...message,
           streaming: false,
@@ -203,7 +174,6 @@ export function App() {
         applyEvent(event as ChatStreamEvent);
       }
     } catch (err) {
-      flushDelta();
       updateLastMessage((message) => ({
         ...message,
         streaming: false,

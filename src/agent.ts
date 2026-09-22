@@ -49,7 +49,6 @@ function textOf(message: Anthropic.Message): string {
 export async function runAgent(
   question: string,
   onEvent: (event: AgentEvent) => void,
-  signal?: AbortSignal,
 ): Promise<AgentResult> {
   const messages: Anthropic.MessageParam[] = [{ role: "user", content: question }];
 
@@ -57,21 +56,16 @@ export async function runAgent(
   let iterations = 0;
 
   while (iterations < MAX_ITERATIONS) {
-    if (signal?.aborted) break;
-
     iterations++;
     onEvent({ type: "iteration", n: iterations });
 
-    const response = await client.messages.create(
-      {
-        model: MODEL,
-        max_tokens: 16000,
-        system: SYSTEM_PROMPT,
-        tools: toolSchemas,
-        messages,
-      },
-      { signal },
-    );
+    const response = await client.messages.create({
+      model: MODEL,
+      max_tokens: 16000,
+      system: SYSTEM_PROMPT,
+      tools: toolSchemas,
+      messages,
+    });
 
     messages.push({ role: "assistant", content: response.content });
 
@@ -109,12 +103,6 @@ export async function runAgent(
     messages.push({ role: "user", content: toolResults });
   }
 
-  // The client disconnected mid-loop — stop instead of spending another
-  // (uncounted) model call on an editor pass nobody will read.
-  if (signal?.aborted) {
-    return { answer: "", iterations };
-  }
-
   if (!draft) {
     draft =
       "I looked at a number of sources but ran out of research steps before I could pull the answer together. Try asking a narrower question.";
@@ -124,20 +112,17 @@ export async function runAgent(
 
   // Polish the draft before showing it to the analyst, streaming it back
   // token by token so the UI can render it as it's generated.
-  const stream = client.messages.stream(
-    {
-      model: MODEL,
-      max_tokens: 16000,
-      system: EDITOR_PROMPT,
-      messages: [
-        {
-          role: "user",
-          content: `Research transcript:\n${JSON.stringify(messages)}\n\nDraft answer:\n${draft}\n\nRewrite the draft answer.`,
-        },
-      ],
-    },
-    { signal },
-  );
+  const stream = client.messages.stream({
+    model: MODEL,
+    max_tokens: 16000,
+    system: EDITOR_PROMPT,
+    messages: [
+      {
+        role: "user",
+        content: `Research transcript:\n${JSON.stringify(messages)}\n\nDraft answer:\n${draft}\n\nRewrite the draft answer.`,
+      },
+    ],
+  });
 
   stream.on("text", (text) => onEvent({ type: "answer_delta", text }));
 
