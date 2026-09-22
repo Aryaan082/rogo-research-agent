@@ -66,6 +66,30 @@ export const toolSchemas: Anthropic.Tool[] = [
   },
 ];
 
+/**
+ * A short, analyst-readable description of a tool call, for the progress UI.
+ * Kept beside the schemas so a new tool's label lives next to its definition.
+ */
+export function describeToolCall(name: string, input: Record<string, unknown>): string {
+  const company = typeof input.company === "string" ? input.company : undefined;
+  const query = typeof input.query === "string" ? input.query : undefined;
+
+  switch (name) {
+    case "searchCompanies":
+      return `Looking up ${query ?? "the coverage universe"}`;
+    case "getCompanyProfile":
+      return `Reading ${company ?? "company"} profile`;
+    case "getFinancials":
+      return `Fetching financials for ${company ?? "company"}`;
+    case "searchDocuments":
+      return company
+        ? `Searching ${company} filings for "${query}"`
+        : `Searching filings for "${query}"`;
+    default:
+      return `Running ${name}`;
+  }
+}
+
 async function searchCompanies(query: string) {
   await sleep(250);
   const needle = String(query).toLowerCase();

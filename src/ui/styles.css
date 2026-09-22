@@ -83,8 +83,15 @@ header p {
   border: 1px solid #e4e8ed;
 }
 
-.bubble.pending {
-  color: #8b97a3;
+/* An error stays inside the assistant bubble, distinct from its prose, so
+   any steps or partial text already shown stay visible alongside it. */
+.error-text {
+  margin-top: 8px;
+  color: #b3261e;
+}
+
+.error-text:first-child {
+  margin-top: 0;
 }
 
 .composer {
@@ -119,6 +126,127 @@ header p {
 .composer input:disabled {
   opacity: 0.55;
   cursor: default;
+}
+
+/* Agent status ------------------------------------------------------------ */
+/* One line by default (Thinking… / the live tool label / Preparing
+   response… / a summary once output starts), expandable via native
+   <details> for the full per-call breakdown once there's anything to show.
+   Before the first tool call there's nothing to expand, so that phase
+   renders as a plain, non-interactive line instead (.status-only). */
+
+.tool-steps {
+  margin-bottom: 8px;
+  font-size: 12.5px;
+  color: #62707f;
+}
+
+.tool-steps:last-child {
+  margin-bottom: 0;
+}
+
+.tool-steps summary,
+.tool-steps.status-only {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.tool-steps summary {
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.tool-steps summary::-webkit-details-marker {
+  display: none;
+}
+
+.tool-steps summary::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin-left: 2px;
+  border-right: 1.5px solid #a7b0ba;
+  border-bottom: 1.5px solid #a7b0ba;
+  transform: rotate(45deg);
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.tool-steps[open] summary::after {
+  transform: rotate(-135deg);
+}
+
+.tool-steps ol {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.tool-steps li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.tool-steps li .label {
+  flex: 1;
+}
+
+.tool-steps li.failed .label {
+  color: #b3261e;
+}
+
+.tool-steps li .ms {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  color: #a7b0ba;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #a7b0ba;
+  flex-shrink: 0;
+}
+
+.dot.done {
+  background: #3ba55d;
+}
+
+.dot.failed {
+  background: #d1453d;
+}
+
+.dot.running {
+  background: #1a5fb4;
+  animation: dot-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes dot-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.7); }
+}
+
+/* Streaming answer text --------------------------------------------------- */
+
+.caret {
+  display: inline-block;
+  width: 7px;
+  height: 13px;
+  margin-left: 1px;
+  background: #33414f;
+  vertical-align: text-bottom;
+  animation: caret-blink 1s step-start infinite;
+}
+
+@keyframes caret-blink {
+  50% { opacity: 0; }
 }
 
 /* Markdown answers ----------------------------------------------------- */
