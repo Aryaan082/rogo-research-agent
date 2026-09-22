@@ -167,3 +167,38 @@ export async function executeTool(
       throw new ToolError(`unknown tool "${name}"`);
   }
 }
+
+export type ToolRunner = (
+  name: string,
+  input: Record<string, unknown>,
+) => { result: Promise<unknown>; cached: boolean };
+
+/**
+ * Identifies a call for the cache.
+ */
+function cacheKey(name: string, input: Record<string, unknown>): string {
+  return `${name}:${JSON.stringify(input, Object.keys(input).sort())}`;
+}
+
+/**
+ * A request-coalescing (single-flight) wrapper over `executeTool`.
+ */
+export function createToolRunner(execute = executeTool): ToolRunner {
+  const inFlight = new Map<string, Promise<unknown>>();
+
+  return (name, input) => {
+    const key = cacheKey(name, input);
+
+    const hit = inFlight.get(key);
+    if (hit) return { result: hit, cached: true };
+
+    const result = execute(name, input);
+    inFlight.set(key, result);
+    // Only failures are evicted; a success stays cached for the whole question.
+    // This handler is what keeps the rejection "handled" even when the entry is
+    // never awaited again — the original promise still reaches its awaiters.
+    result.catch(() => inFlight.delete(key));
+
+    return { result, cached: false };
+  };
+}

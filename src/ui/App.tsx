@@ -90,7 +90,12 @@ export function App() {
           ...message,
           steps: (message.steps ?? []).map((step) =>
             step.id === event.id
-              ? { ...step, ms: event.ms, status: step.status === "failed" ? "failed" : "done" }
+              ? {
+                  ...step,
+                  ms: event.ms,
+                  cached: event.cached,
+                  status: step.status === "failed" ? "failed" : "done",
+                }
               : step,
           ),
         }));
