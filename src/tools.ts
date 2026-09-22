@@ -19,7 +19,10 @@ export const toolSchemas: Anthropic.Tool[] = [
     input_schema: {
       type: "object",
       properties: {
-        query: { type: "string", description: "A company name or part of one." },
+        query: {
+          type: "string",
+          description: "A company name or part of one.",
+        },
       },
       required: ["query"],
     },
@@ -70,7 +73,10 @@ export const toolSchemas: Anthropic.Tool[] = [
  * A short, analyst-readable description of a tool call, for the progress UI.
  * Kept beside the schemas so a new tool's label lives next to its definition.
  */
-export function describeToolCall(name: string, input: Record<string, unknown>): string {
+export function describeToolCall(
+  name: string,
+  input: Record<string, unknown>,
+): string {
   const company = typeof input.company === "string" ? input.company : undefined;
   const query = typeof input.query === "string" ? input.query : undefined;
 
@@ -93,7 +99,9 @@ export function describeToolCall(name: string, input: Record<string, unknown>): 
 async function searchCompanies(query: string) {
   await sleep(250);
   const needle = String(query).toLowerCase();
-  const matches = companies.filter((c) => c.name.toLowerCase().includes(needle));
+  const matches = companies.filter((c) =>
+    c.name.toLowerCase().includes(needle),
+  );
   return matches.map((c) => ({
     name: c.name,
     ticker: c.ticker,
@@ -162,8 +170,46 @@ export async function executeTool(
     case "getFinancials":
       return getFinancials(input.company as string);
     case "searchDocuments":
-      return searchDocuments(input.query as string, input.company as string | undefined);
+      return searchDocuments(
+        input.query as string,
+        input.company as string | undefined,
+      );
     default:
       throw new ToolError(`unknown tool "${name}"`);
   }
+}
+
+export type ToolRunner = (
+  name: string,
+  input: Record<string, unknown>,
+) => { result: Promise<unknown>; cached: boolean };
+
+/**
+ * Identifies a call for the cache.
+ */
+function cacheKey(name: string, input: Record<string, unknown>): string {
+  return `${name}:${JSON.stringify(input, Object.keys(input).sort())}`;
+}
+
+/**
+ * A request-coalescing (single-flight) wrapper over `executeTool`.
+ */
+export function createToolRunner(execute = executeTool): ToolRunner {
+  const inFlight = new Map<string, Promise<unknown>>();
+
+  return (name, input) => {
+    const key = cacheKey(name, input);
+
+    const hit = inFlight.get(key);
+    if (hit) return { result: hit, cached: true };
+
+    const result = execute(name, input);
+    inFlight.set(key, result);
+    // Only failures are evicted; a success stays cached for the whole question.
+    // This handler is what keeps the rejection "handled" even when the entry is
+    // never awaited again — the original promise still reaches its awaiters.
+    result.catch(() => inFlight.delete(key));
+
+    return { result, cached: false };
+  };
 }

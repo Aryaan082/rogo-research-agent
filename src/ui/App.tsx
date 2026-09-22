@@ -51,7 +51,10 @@ export function App() {
   useEffect(() => {
     if (!busy) return;
     setNow(Date.now());
-    const id = setInterval(() => setNow(Date.now()), 100);
+    // Once a second, because that's the resolution the status line renders.
+    // Every tick re-renders the transcript and re-parses each answer's
+    // markdown, so a faster one would only buy repeated identical output.
+    const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, [busy]);
 
@@ -90,7 +93,12 @@ export function App() {
           ...message,
           steps: (message.steps ?? []).map((step) =>
             step.id === event.id
-              ? { ...step, ms: event.ms, status: step.status === "failed" ? "failed" : "done" }
+              ? {
+                  ...step,
+                  ms: event.ms,
+                  cached: event.cached,
+                  status: step.status === "failed" ? "failed" : "done",
+                }
               : step,
           ),
         }));

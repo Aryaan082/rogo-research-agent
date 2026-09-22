@@ -3,6 +3,8 @@ export interface ToolStep {
   label: string;
   status: "running" | "done" | "failed";
   ms?: number;
+  /** Served from an earlier identical call in this question rather than re-run. */
+  cached?: boolean;
 }
 
 interface AgentStatusProps {
@@ -20,14 +22,19 @@ interface AgentStatusProps {
  * The agent's live status for one answer, as a single line at the top of the
  * assistant bubble:
  *
- *   nothing yet            → "Thinking… · 0.8s"
- *   a tool is running      → "Fetching financials for Acme Corp · 1.3s"
- *   a tool just finished   → same label, stays until a new one starts — we
- *                            never show a count while more calls could still
- *                            come in, only ever "whichever is most recent"
- *   between tool calls,
- *   or after the last one  → "Preparing response… · 4.6s"
- *   output has started     → collapses to "3 tool calls · 5.1s" (or
+ *   nothing yet            → "Thinking… · 0s"
+ *   one tool is running    → "Fetching financials for Acme Corp · 1s"
+ *   several are running    → "3 lookups running · 1s" — a whole turn's calls
+ *                            go out at once, and naming any one of them would
+ *                            mean showing a call that may already have
+ *                            finished while its siblings are still in flight.
+ *                            As the batch drains to its last call, the line
+ *                            narrows back to that call's own label.
+ *   none running (between
+ *   calls, or after the
+ *   last one)              → the most recent label, until the next call
+ *                            starts; then "Preparing response… · 4s"
+ *   output has started     → collapses to "3 tool calls · 5s" (or
  *                            "· 1 failed"), a permanent record of what was
  *                            consulted
  *
@@ -44,8 +51,9 @@ interface AgentStatusProps {
 export function AgentStatus({ steps, preparing, hasOutput, elapsedSeconds }: AgentStatusProps) {
   if (hasOutput && steps.length === 0) return null;
 
-  const elapsed = `${elapsedSeconds.toFixed(1)}s`;
+  const elapsed = `${Math.floor(elapsedSeconds)}s`;
   const failed = steps.filter((s) => s.status === "failed").length;
+  const running = steps.filter((s) => s.status === "running");
 
   let dotClass: string;
   let label: string;
@@ -58,6 +66,15 @@ export function AgentStatus({ steps, preparing, hasOutput, elapsedSeconds }: Age
   } else if (preparing) {
     dotClass = "running";
     label = `Preparing response… · ${elapsed}`;
+  } else if (running.length > 1) {
+    // A batch is in flight. No single label is the honest one, and picking the
+    // newest would let the line show a finished call while others still run.
+    dotClass = "running";
+    label = `${running.length} lookups running · ${elapsed}`;
+  } else if (running.length === 1) {
+    // Either an ordinary single call, or a batch drained down to its straggler.
+    dotClass = "running";
+    label = `${running[0].label} · ${elapsed}`;
   } else if (steps.length > 0) {
     const current = steps[steps.length - 1];
     dotClass = current.status;
@@ -87,7 +104,11 @@ export function AgentStatus({ steps, preparing, hasOutput, elapsedSeconds }: Age
           <li key={step.id} className={step.status}>
             <span className={`dot ${step.status}`} />
             <span className="label">{step.label}</span>
-            {step.ms !== undefined && <span className="ms">{step.ms}ms</span>}
+            {step.cached ? (
+              <span className="ms">cached</span>
+            ) : (
+              step.ms !== undefined && <span className="ms">{step.ms}ms</span>
+            )}
           </li>
         ))}
       </ol>

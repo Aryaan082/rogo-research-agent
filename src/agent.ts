@@ -4,7 +4,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { companies } from "./data.ts";
-import { describeToolCall, executeTool, toolSchemas } from "./tools.ts";
+import { createToolRunner, describeToolCall, toolSchemas, type ToolRunner } from "./tools.ts";
 
 const MODEL = process.env.ROGO_MODEL ?? "claude-sonnet-5";
 const MAX_ITERATIONS = 12;
@@ -29,7 +29,7 @@ const EDITOR_PROMPT = `You are an editor. Rewrite the analyst's draft answer so 
 export type AgentEvent =
   | { type: "iteration"; n: number }
   | { type: "tool_start"; id: string; name: string; input: unknown; label: string }
-  | { type: "tool_end"; id: string; name: string; ms: number }
+  | { type: "tool_end"; id: string; name: string; ms: number; cached: boolean }
   | { type: "tool_failed"; id: string; name: string; message: string }
   | { type: "answer_start" }
   | { type: "answer_delta"; text: string };
@@ -46,11 +46,64 @@ function textOf(message: Anthropic.Message): string {
     .join("\n");
 }
 
+/**
+ * Runs every tool call from one model turn concurrently.
+ *
+ * The calls the model asks for in a single turn are independent of each other —
+ * it decided on all of them before seeing any of their results — so there is
+ * nothing to gain by making them wait in line. Each tool stands in for a
+ * network round trip, so running them together costs an iteration about as
+ * much as its slowest call instead of the sum of all of them.
+ *
+ * Errors are caught per call, so one failing tool can't reject the whole
+ * turn or throw away results its siblings already paid for. `Promise.all` keeps the
+ * results in `toolUses` order, which is the order the model expects them in.
+ */
+export async function runToolCalls(
+  toolUses: Anthropic.ToolUseBlock[],
+  run: ToolRunner,
+  onEvent: (event: AgentEvent) => void,
+): Promise<Anthropic.ToolResultBlockParam[]> {
+  return Promise.all(
+    toolUses.map(async (use) => {
+      const startedAt = Date.now();
+      const input = use.input as Record<string, unknown>;
+      const label = describeToolCall(use.name, input);
+      onEvent({ type: "tool_start", id: use.id, name: use.name, input: use.input, label });
+
+      // Started before the first await, so duplicates within this same turn
+      // find the earlier call already in flight and coalesce onto it.
+      const { result, cached } = run(use.name, input);
+
+      let content: string;
+      try {
+        content = JSON.stringify(await result);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        content = `${use.name} returned: ${message}`;
+        onEvent({ type: "tool_failed", id: use.id, name: use.name, message });
+      }
+
+      onEvent({ type: "tool_end", id: use.id, name: use.name, ms: Date.now() - startedAt, cached });
+
+      return {
+        type: "tool_result",
+        tool_use_id: use.id,
+        content,
+      } satisfies Anthropic.ToolResultBlockParam;
+    }),
+  );
+}
+
 export async function runAgent(
   question: string,
   onEvent: (event: AgentEvent) => void,
 ): Promise<AgentResult> {
   const messages: Anthropic.MessageParam[] = [{ role: "user", content: question }];
+
+  // Scoped to this question: the agent re-researches from scratch each time,
+  // so a repeated lookup within one question is the only kind worth reusing.
+  const run = createToolRunner();
 
   let draft = "";
   let iterations = 0;
@@ -78,29 +131,10 @@ export async function runAgent(
       break;
     }
 
-    const toolResults: Anthropic.ToolResultBlockParam[] = [];
-
-    for (const use of toolUses) {
-      const startedAt = Date.now();
-      const input = use.input as Record<string, unknown>;
-      const label = describeToolCall(use.name, input);
-      onEvent({ type: "tool_start", id: use.id, name: use.name, input: use.input, label });
-
-      let content: string;
-      try {
-        const output = await executeTool(use.name, input);
-        content = JSON.stringify(output);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        content = `${use.name} returned: ${message}`;
-        onEvent({ type: "tool_failed", id: use.id, name: use.name, message });
-      }
-
-      onEvent({ type: "tool_end", id: use.id, name: use.name, ms: Date.now() - startedAt });
-      toolResults.push({ type: "tool_result", tool_use_id: use.id, content });
-    }
-
-    messages.push({ role: "user", content: toolResults });
+    messages.push({
+      role: "user",
+      content: await runToolCalls(toolUses, run, onEvent),
+    });
   }
 
   if (!draft) {
