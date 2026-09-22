@@ -22,9 +22,9 @@ interface AgentStatusProps {
  * The agent's live status for one answer, as a single line at the top of the
  * assistant bubble:
  *
- *   nothing yet            → "Thinking… · 0.8s"
- *   one tool is running    → "Fetching financials for Acme Corp · 1.3s"
- *   several are running    → "3 lookups running · 1.3s" — a whole turn's calls
+ *   nothing yet            → "Thinking… · 0s"
+ *   one tool is running    → "Fetching financials for Acme Corp · 1s"
+ *   several are running    → "3 lookups running · 1s" — a whole turn's calls
  *                            go out at once, and naming any one of them would
  *                            mean showing a call that may already have
  *                            finished while its siblings are still in flight.
@@ -33,8 +33,8 @@ interface AgentStatusProps {
  *   none running (between
  *   calls, or after the
  *   last one)              → the most recent label, until the next call
- *                            starts; then "Preparing response… · 4.6s"
- *   output has started     → collapses to "3 tool calls · 5.1s" (or
+ *                            starts; then "Preparing response… · 4s"
+ *   output has started     → collapses to "3 tool calls · 5s" (or
  *                            "· 1 failed"), a permanent record of what was
  *                            consulted
  *
@@ -51,7 +51,7 @@ interface AgentStatusProps {
 export function AgentStatus({ steps, preparing, hasOutput, elapsedSeconds }: AgentStatusProps) {
   if (hasOutput && steps.length === 0) return null;
 
-  const elapsed = `${elapsedSeconds.toFixed(1)}s`;
+  const elapsed = `${Math.floor(elapsedSeconds)}s`;
   const failed = steps.filter((s) => s.status === "failed").length;
   const running = steps.filter((s) => s.status === "running");
 
