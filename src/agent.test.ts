@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type Anthropic from "@anthropic-ai/sdk";
-import { runToolBatch, type AgentEvent } from "./agent.ts";
+import { runToolCalls, type AgentEvent } from "./agent.ts";
 import { createToolRunner } from "./tools.ts";
 
-/** A tool_use block; only the fields runToolBatch reads need to be real. */
+/** A tool_use block; only the fields runToolCalls reads need to be real. */
 function use(id: string, name: string, input: Record<string, unknown>) {
   return { type: "tool_use", id, name, input } as Anthropic.ToolUseBlock;
 }
@@ -35,10 +35,10 @@ function controllable() {
 /** Lets pending microtasks run, so in-flight coalescing has settled. */
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-describe("runToolBatch", () => {
+describe("runToolCalls", () => {
   it("starts every call in the turn before any of them finishes", async () => {
     const tools = controllable();
-    const batch = runToolBatch(
+    const batch = runToolCalls(
       [
         use("t1", "getFinancials", { company: "Acme Corp" }),
         use("t2", "getCompanyProfile", { company: "Globex" }),
@@ -64,7 +64,7 @@ describe("runToolBatch", () => {
 
   it("returns results in request order, matched to their tool_use ids", async () => {
     const tools = controllable();
-    const batch = runToolBatch(
+    const batch = runToolCalls(
       [
         use("t1", "getFinancials", { company: "Acme Corp" }),
         use("t2", "getCompanyProfile", { company: "Globex" }),
@@ -87,7 +87,7 @@ describe("runToolBatch", () => {
   it("keeps a failing call from taking its siblings down with it", async () => {
     const tools = controllable();
     const events: AgentEvent[] = [];
-    const batch = runToolBatch(
+    const batch = runToolCalls(
       [
         use("t1", "getFinancials", { company: "Nowhere Inc" }),
         use("t2", "getCompanyProfile", { company: "Globex" }),
@@ -117,7 +117,7 @@ describe("runToolBatch", () => {
   it("coalesces a duplicate within one turn onto the call already in flight", async () => {
     const tools = controllable();
     const events: AgentEvent[] = [];
-    const batch = runToolBatch(
+    const batch = runToolCalls(
       [
         use("t1", "getFinancials", { company: "Acme Corp" }),
         use("t2", "getFinancials", { company: "Acme Corp" }),
@@ -140,7 +140,7 @@ describe("runToolBatch", () => {
 
   it("treats inputs written in a different key order as the same call", async () => {
     const tools = controllable();
-    const batch = runToolBatch(
+    const batch = runToolCalls(
       [
         use("t1", "searchDocuments", { query: "margin", company: "Acme Corp" }),
         use("t2", "searchDocuments", { company: "Acme Corp", query: "margin" }),
@@ -160,12 +160,12 @@ describe("runToolBatch", () => {
     const run = createToolRunner(tools.execute);
     const events: AgentEvent[] = [];
 
-    const first = runToolBatch([use("t1", "getFinancials", { company: "Acme Corp" })], run, () => {});
+    const first = runToolCalls([use("t1", "getFinancials", { company: "Acme Corp" })], run, () => {});
     await tick();
     tools.resolve('getFinancials:{"company":"Acme Corp"}', { revenue: 1 });
     await first;
 
-    const second = runToolBatch(
+    const second = runToolCalls(
       [use("t2", "getFinancials", { company: "Acme Corp" })],
       run,
       (event) => events.push(event),
@@ -181,7 +181,7 @@ describe("runToolBatch", () => {
     const tools = controllable();
     const run = createToolRunner(tools.execute);
 
-    const first = runToolBatch(
+    const first = runToolCalls(
       [
         use("t1", "getFinancials", { company: "Nowhere Inc" }),
         use("t2", "getFinancials", { company: "Nowhere Inc" }),
@@ -202,7 +202,7 @@ describe("runToolBatch", () => {
 
     // The failure isn't pinned: a later turn gets a fresh attempt.
     await tick();
-    const second = runToolBatch([use("t3", "getFinancials", { company: "Nowhere Inc" })], run, () => {});
+    const second = runToolCalls([use("t3", "getFinancials", { company: "Nowhere Inc" })], run, () => {});
     await tick();
     expect(tools.started).toHaveLength(2);
     tools.resolve('getFinancials:{"company":"Nowhere Inc"}', { revenue: 2 });

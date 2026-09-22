@@ -55,11 +55,11 @@ function textOf(message: Anthropic.Message): string {
  * network round trip, so running them together costs an iteration about as
  * much as its slowest call instead of the sum of all of them.
  *
- * Errors are caught per call, so one failing tool can't reject the batch or
- * throw away results its siblings already paid for. `Promise.all` keeps the
+ * Errors are caught per call, so one failing tool can't reject the whole
+ * turn or throw away results its siblings already paid for. `Promise.all` keeps the
  * results in `toolUses` order, which is the order the model expects them in.
  */
-export async function runToolBatch(
+export async function runToolCalls(
   toolUses: Anthropic.ToolUseBlock[],
   run: ToolRunner,
   onEvent: (event: AgentEvent) => void,
@@ -71,7 +71,7 @@ export async function runToolBatch(
       const label = describeToolCall(use.name, input);
       onEvent({ type: "tool_start", id: use.id, name: use.name, input: use.input, label });
 
-      // Started before the first await, so duplicates within this same batch
+      // Started before the first await, so duplicates within this same turn
       // find the earlier call already in flight and coalesce onto it.
       const { result, cached } = run(use.name, input);
 
@@ -133,7 +133,7 @@ export async function runAgent(
 
     messages.push({
       role: "user",
-      content: await runToolBatch(toolUses, run, onEvent),
+      content: await runToolCalls(toolUses, run, onEvent),
     });
   }
 
